@@ -1,0 +1,636 @@
+@startuml
+' classDiagram
+    ' %% ============ ABSTRACT CLASSES & INTERFACES ============
+    class User {
+        <<abstract>>
+        #userId: string
+        #name: string
+        #phone: string
+        #currentLocation: Location
+        #registrationDate: Date
+        +User(userId: string, name: string, phone: string)
+        +getId(): string
+        +getName(): string
+        +getPhone(): string
+        +getCurrentLocation(): Location
+        +updateLocation(location: Location): void
+        +getRegistrationDate(): Date
+    }
+
+    class IDriverMatchingStrategy {
+        <<interface>>
+        +findBestDriver(availableDrivers: Driver[], request: RideRequest): Driver
+    }
+
+    class IPricingStrategy {
+        <<interface>>
+        +calculateBaseFare(ride: Ride): number
+        +getDescription(): string
+    }
+
+    class INotificationService {
+        <<interface>>
+        +sendNotification(userId: string, message: string, type: NotificationType): void
+        +isServiceAvailable(): boolean
+    }
+
+    class IPaymentProcessor {
+        <<interface>>
+        +processPayment(request: PaymentRequest): PaymentResult
+        +refundPayment(transactionId: string, amount: number): boolean
+        +getPaymentMethod(): PaymentMethod
+    }
+
+    class IRideObserver {
+        <<interface>>
+        +onRideStatusChanged(ride: Ride, oldStatus: RideStatus, newStatus: RideStatus): void
+        +onRideCreated(ride: Ride): void
+        +onRideCompleted(ride: Ride): void
+    }
+
+    class ILocationService {
+        <<interface>>
+        +calculateDistance(from: Location, to: Location): number
+        +estimateTime(from: Location, to: Location, type: VehicleType): number
+        +findNearbyDrivers(center: Location, radiusKm: number): Driver[]
+    }
+
+    ' %% ============ CONCRETE USER CLASSES ============
+    class Rider {
+        <<concrete>>
+        -rideHistory: string[]
+        -preferredPayment: PaymentMethod
+        -walletBalance: number
+        +Rider(userId: string, name: string, phone: string)
+        +requestRide(request: RideRequest): string
+        +cancelRide(rideId: string, reason: string): boolean
+        +getRideHistory(): string[]
+        +addToWallet(amount: number): void
+        +getWalletBalance(): number
+        +rateDriver(rideId: string, rating: number, feedback: string): void
+    }
+
+    class Driver {
+        <<concrete>>
+        -vehicle: Vehicle
+        -status: DriverStatus
+        -rating: number
+        -totalRides: number
+        -isAvailable: boolean
+        -rideHistory: string[]
+        +Driver(userId: string, name: string, phone: string, vehicle: Vehicle)
+        +acceptRide(rideId: string): boolean
+        +rejectRide(rideId: string, reason: string): boolean
+        +updateStatus(status: DriverStatus): void
+        +startTrip(rideId: string): void
+        +completeTrip(rideId: string): void
+        +goOnline(): void
+        +goOffline(): void
+        +updateLocation(location: Location): void
+        +getVehicle(): Vehicle
+        +getRating(): number
+        +isAvailable(): boolean
+        +getTotalRides(): number
+    }
+
+    ' %% ============ VEHICLE RELATED CLASSES ============
+    class Vehicle {
+        <<model>>
+        -vehicleId: string
+        -type: VehicleType
+        -licensePlate: string
+        -make: string
+        -model: string
+        -year: number
+        -capacity: number
+        -baseFareRate: number
+        -status: VehicleStatus
+        +Vehicle(type: VehicleType, licensePlate: string, make: string, model: string)
+        +getType(): VehicleType
+        +getCapacity(): number
+        +getBaseFareRate(): number
+        +getLicensePlate(): string
+        +getMake(): string
+        +getModel(): string
+        +getStatus(): VehicleStatus
+        +updateStatus(status: VehicleStatus): void
+    }
+
+    class VehicleType {
+        <<enumeration>>
+        BIKE
+        AUTO_RICKSHAW
+        SEDAN
+        SUV
+        LUXURY
+    }
+
+    class VehicleStatus {
+        <<enumeration>>
+        ACTIVE
+        MAINTENANCE
+        INACTIVE
+    }
+
+    class VehicleFactory {
+        <<singleton>>
+        -instance: VehicleFactory
+        +getInstance(): VehicleFactory
+        +createVehicle(type: VehicleType, licensePlate: string, make: string, model: string): Vehicle
+    }
+
+    ' %% ============ LOCATION & GEOGRAPHY ============
+    class Location {
+        <<model>>
+        -latitude: number
+        -longitude: number
+        -address: string
+        +Location(lat: number, lng: number, address: string)
+        +getLatitude(): number
+        +getLongitude(): number
+        +getAddress(): string
+        +distanceTo(other: Location): number
+        +isWithinRadius(center: Location, radiusKm: number): boolean
+    }
+
+    class LocationService {
+        <<singleton>>
+        -instance: LocationService
+        -locationCache: Map<string, Location>
+        +getInstance(): LocationService
+        +calculateDistance(from: Location, to: Location): number
+        +estimateTime(from: Location, to: Location, type: VehicleType): number
+        +findNearbyDrivers(center: Location, radiusKm: number): Driver[]
+        +geocodeAddress(address: string): Location
+        +reverseGeocode(lat: number, lng: number): string
+    }
+
+    ' %% ============ RIDE MANAGEMENT ============
+    class RideRequest {
+        <<model>>
+        -requestId: string
+        -riderId: string
+        -pickupLocation: Location
+        -dropoffLocation: Location
+        -preferredVehicleType: VehicleType
+        -rideType: RideType
+        -requestTime: Date
+        -scheduledTime: Date
+        -additionalInfo: Map<string, string>
+        -passengerCount: number
+        +RideRequest(riderId: string, pickup: Location, dropoff: Location, vehicleType: VehicleType)
+        +getRequestId(): string
+        +getRiderId(): string
+        +getPickupLocation(): Location
+        +getDropoffLocation(): Location
+        +getVehicleType(): VehicleType
+        +getRideType(): RideType
+        +getScheduledTime(): Date
+        +getPassengerCount(): number
+        +isScheduledRide(): boolean
+    }
+
+    class Ride {
+        <<model>>
+        -rideId: string
+        -riderId: string
+        -driverId: string
+        -request: RideRequest
+        -status: RideStatus
+        -createdTime: Date
+        -startTime: Date
+        -endTime: Date
+        -estimatedFare: number
+        -actualFare: number
+        -distance: number
+        -duration: number
+        -observers: IRideObserver[]
+        -statusHistory: RideStatusHistory[]
+        +Ride(rideId: string, request: RideRequest)
+        +getId(): string
+        +getStatus(): RideStatus
+        +updateStatus(newStatus: RideStatus): void
+        +assignDriver(driverId: string): void
+        +addObserver(observer: IRideObserver): void
+        +removeObserver(observer: IRideObserver): void
+        +notifyObservers(oldStatus: RideStatus): void
+        +calculateEstimatedFare(): number
+        +setActualFare(fare: number): void
+        +getDistance(): number
+        +getDuration(): number
+        +getStatusHistory(): RideStatusHistory[]
+        +isActive(): boolean
+        +canBeCancelled(): boolean
+    }
+
+    class RideStatus {
+        <<enumeration>>
+        REQUESTED
+        DRIVER_ASSIGNED
+        DRIVER_EN_ROUTE
+        DRIVER_ARRIVED
+        PASSENGER_PICKED_UP
+        IN_PROGRESS
+        COMPLETED
+        CANCELLED_BY_RIDER
+        CANCELLED_BY_DRIVER
+        CANCELLED_NO_DRIVER
+    }
+
+    class RideType {
+        <<enumeration>>
+        NORMAL
+        CARPOOL
+        SCHEDULED
+    }
+
+    class RideStatusHistory {
+        <<model>>
+        -status: RideStatus
+        -timestamp: Date
+        -remarks: string
+        +RideStatusHistory(status: RideStatus, remarks: string)
+        +getStatus(): RideStatus
+        +getTimestamp(): Date
+        +getRemarks(): string
+    }
+
+    ' %% ============ DRIVER STATUS ============
+    class DriverStatus {
+        <<enumeration>>
+        AVAILABLE
+        ON_TRIP
+        OFFLINE
+    }
+
+    ' %% ============ MATCHING STRATEGIES (STRATEGY PATTERN) ============
+    class NearestDriverStrategy {
+        <<concrete>>
+        -locationService: ILocationService
+        +NearestDriverStrategy(locationService: ILocationService)
+        +findBestDriver(availableDrivers: Driver[], request: RideRequest): Driver
+    }
+
+    class HighestRatedDriverStrategy {
+        <<concrete>>
+        -minimumRating: number
+        +HighestRatedDriverStrategy(minRating: number)
+        +findBestDriver(availableDrivers: Driver[], request: RideRequest): Driver
+    }
+
+   
+
+    ' %% ============ PRICING STRATEGIES (STRATEGY + DECORATOR PATTERN) ============
+    class BasePricingStrategy {
+        <<concrete>>
+        +BasePricingStrategy()
+        +calculateBaseFare(ride: Ride): number
+        +getDescription(): string
+    }
+
+    class SurgePricingDecorator {
+        <<concrete>>
+        -baseStrategy: IPricingStrategy
+        -surgeMultiplier: number
+        -condition: SurgeCondition
+        +SurgePricingDecorator(strategy: IPricingStrategy, multiplier: number, condition: SurgeCondition)
+        +calculateBaseFare(ride: Ride): number
+        +getDescription(): string
+        +getSurgeMultiplier(): number
+        +shouldApplySurge(ride: Ride): boolean
+    }
+
+    class DiscountPricingDecorator {
+        <<concrete>>
+        -baseStrategy: IPricingStrategy
+        -discountPercentage: number
+        -condition: DiscountCondition
+        +DiscountPricingDecorator(strategy: IPricingStrategy, discount: number, condition: DiscountCondition)
+        +calculateBaseFare(ride: Ride): number
+        +getDescription(): string
+        +getDiscountPercentage(): number
+        +shouldApplyDiscount(ride: Ride): boolean
+    }
+
+    class PromoCodePricingDecorator {
+        <<concrete>>
+        -baseStrategy: IPricingStrategy
+        -promoCode: string
+        -discountAmount: number
+        -validUntil: Date
+        +PromoCodePricingDecorator(strategy: IPricingStrategy, code: string, discount: number, validUntil: Date)
+        +calculateBaseFare(ride: Ride): number
+        +getDescription(): string
+        +isValidPromoCode(code: string): boolean
+    }
+
+    ' %% ============ SURGE & DISCOUNT CONDITIONS ============
+    class SurgeCondition {
+        <<enumeration>>
+        PEAK_HOURS
+        HIGH_DEMAND
+        WEATHER_CONDITION
+        SPECIAL_EVENT
+    }
+
+    class DiscountCondition {
+        <<enumeration>>
+        FIRST_RIDE
+        FREQUENT_RIDER
+        SENIOR_CITIZEN
+        STUDENT
+    }
+
+    ' %% ============ NOTIFICATION SERVICES ============
+    class SMSNotificationService {
+        <<concrete>>
+        -apiKey: string
+        -baseUrl: string
+        +SMSNotificationService(apiKey: string)
+        +sendNotification(userId: string, message: string, type: NotificationType): void
+        +isServiceAvailable(): boolean
+    }
+
+    class EmailNotificationService {
+        <<concrete>>
+        -smtpServer: string
+        -username: string
+        -password: string
+        +EmailNotificationService(server: string, user: string, pass: string)
+        +sendNotification(userId: string, message: string, type: NotificationType): void
+        +isServiceAvailable(): boolean
+    }
+
+    class PushNotificationService {
+        <<concrete>>
+        -fcmKey: string
+        -deviceTokens: Map<string, string>
+        +PushNotificationService(fcmKey: string)
+        +sendNotification(userId: string, message: string, type: NotificationType): void
+        +isServiceAvailable(): boolean
+        +registerDeviceToken(userId: string, token: string): void
+    }
+
+    class NotificationType {
+        <<enumeration>>
+        RIDE_CONFIRMED
+        DRIVER_ASSIGNED
+        DRIVER_ARRIVED
+        RIDE_STARTED
+        RIDE_COMPLETED
+        PAYMENT_PROCESSED
+        RIDE_CANCELLED
+    }
+
+    ' %% ============ PAYMENT PROCESSING ============
+    class CreditCardProcessor {
+        <<concrete>>
+        -merchantId: string
+        -apiKey: string
+        +CreditCardProcessor(merchantId: string, apiKey: string)
+        +processPayment(request: PaymentRequest): PaymentResult
+        +refundPayment(transactionId: string, amount: number): boolean
+        +getPaymentMethod(): PaymentMethod
+    }
+
+    class DigitalWalletProcessor {
+        <<concrete>>
+        -walletApiEndpoint: string
+        -apiKey: string
+        +DigitalWalletProcessor(endpoint: string, key: string)
+        +processPayment(request: PaymentRequest): PaymentResult
+        +refundPayment(transactionId: string, amount: number): boolean
+        +getPaymentMethod(): PaymentMethod
+    }
+
+    class CashProcessor {
+        <<concrete>>
+        +CashProcessor()
+        +processPayment(request: PaymentRequest): PaymentResult
+        +refundPayment(transactionId: string, amount: number): boolean
+        +getPaymentMethod(): PaymentMethod
+    }
+
+    class PaymentRequest {
+        <<model>>
+        -rideId: string
+        -userId: string
+        -amount: number
+        -method: PaymentMethod
+        -metadata: Map<string, string>
+        +PaymentRequest(rideId: string, userId: string, amount: number, method: PaymentMethod)
+        +getRideId(): string
+        +getUserId(): string
+        +getAmount(): number
+        +getMethod(): PaymentMethod
+        +getMetadata(): Map<string, string>
+    }
+
+    class PaymentResult {
+        <<model>>
+        -transactionId: string
+        -success: boolean
+        -message: string
+        -processedAt: Date
+        +PaymentResult(transactionId: string, success: boolean, message: string)
+        +getTransactionId(): string
+        +isSuccess(): boolean
+        +getMessage(): string
+        +getProcessedAt(): Date
+    }
+
+    class PaymentMethod {
+        <<enumeration>>
+        CREDIT_CARD
+        DEBIT_CARD
+        DIGITAL_WALLET
+        CASH
+        UPI
+    }
+
+    ' %% ============ OBSERVER IMPLEMENTATIONS ============
+    class RiderNotificationObserver {
+        <<concrete>>
+        -notificationService: INotificationService
+        -riderId: string
+        +RiderNotificationObserver(service: INotificationService, riderId: string)
+        +onRideStatusChanged(ride: Ride, oldStatus: RideStatus, newStatus: RideStatus): void
+        +onRideCreated(ride: Ride): void
+        +onRideCompleted(ride: Ride): void
+    }
+
+    class DriverNotificationObserver {
+        <<concrete>>
+        -notificationService: INotificationService
+        -driverId: string
+        +DriverNotificationObserver(service: INotificationService, driverId: string)
+        +onRideStatusChanged(ride: Ride, oldStatus: RideStatus, newStatus: RideStatus): void
+        +onRideCreated(ride: Ride): void
+        +onRideCompleted(ride: Ride): void
+    }
+
+    class LoggingObserver {
+        <<concrete>>
+        -logLevel: string
+        -logFile: string
+        +LoggingObserver(level: string, file: string)
+        +onRideStatusChanged(ride: Ride, oldStatus: RideStatus, newStatus: RideStatus): void
+        +onRideCreated(ride: Ride): void
+        +onRideCompleted(ride: Ride): void
+    }
+
+    ' %% ============ CORE MANAGEMENT CLASSES (SINGLETON PATTERN) ============
+    class RideManager {
+        <<singleton>>
+        -instance: RideManager
+        -activeRides: Map<string, Ride>
+        -completedRides: Map<string, Ride>
+        -pendingRequests: Map<string, RideRequest>
+        -matchingStrategy: IDriverMatchingStrategy
+        -pricingStrategy: IPricingStrategy
+        -rideQueue: string[]
+        +getInstance(): RideManager
+        +requestRide(request: RideRequest): string
+        +assignDriver(rideId: string, driverId: string): boolean
+        +updateRideStatus(rideId: string, status: RideStatus): void
+        +completeRide(rideId: string): void
+        +cancelRide(rideId: string, reason: string): boolean
+        +getRide(rideId: string): Ride
+        +getActiveRides(): Ride[]
+        +setMatchingStrategy(strategy: IDriverMatchingStrategy): void
+        +setPricingStrategy(strategy: IPricingStrategy): void
+        +processRideQueue(): void
+    }
+
+    class DriverManager {
+        <<singleton>>
+        -instance: DriverManager
+        -allDrivers: Map<string, Driver>
+        -availableDrivers: Driver[]
+        -locationIndex: Map<Location, Driver[]>
+        +getInstance(): DriverManager
+        +registerDriver(driver: Driver): void
+        +unregisterDriver(driverId: string): void
+        +getDriver(driverId: string): Driver
+        +getAvailableDrivers(): Driver[]
+        +getAvailableDriversForVehicleType(type: VehicleType): Driver[]
+        +updateDriverStatus(driverId: string, status: DriverStatus): void
+        +updateDriverLocation(driverId: string, location: Location): void
+        +findDriversInRadius(location: Location, radius: number): Driver[]
+        +getTotalActiveDrivers(): number
+    }
+
+    class UserManager {
+        <<singleton>>
+        -instance: UserManager
+        -riders: Map<string, Rider>
+        -drivers: Map<string, Driver>
+        -allUsers: Map<string, User>
+        +getInstance(): UserManager
+        +registerRider(rider: Rider): void
+        +registerDriver(driver: Driver): void
+        +getRider(riderId: string): Rider
+        +getDriver(driverId: string): Driver
+        +getUser(userId: string): User
+        +isUserRegistered(userId: string): boolean
+        +updateUserLocation(userId: string, location: Location): void
+        +getTotalUsers(): number
+        +getTotalRiders(): number
+        +getTotalDrivers(): number
+    }
+
+    class NotificationManager {
+        <<singleton>>
+        -instance: NotificationManager
+        -notificationServices: INotificationService[]
+        -serviceMapping: Map<NotificationType, INotificationService[]>
+        +getInstance(): NotificationManager
+        +addNotificationService(service: INotificationService): void
+        +removeNotificationService(service: INotificationService): void
+        +notifyUser(userId: string, message: string, type: NotificationType): void
+        +notifyMultipleUsers(userIds: string[], message: string, type: NotificationType): void
+        +configureServiceForType(type: NotificationType, service: INotificationService): void
+    }
+
+    class PaymentManager {
+        <<singleton>>
+        -instance: PaymentManager
+        -processors: Map<PaymentMethod, IPaymentProcessor>
+        -paymentHistory: PaymentResult[]
+        +getInstance(): PaymentManager
+        +addPaymentProcessor(method: PaymentMethod, processor: IPaymentProcessor): void
+        +processPayment(request: PaymentRequest): PaymentResult
+        +refundPayment(transactionId: string, amount: number): boolean
+        +getPaymentHistory(userId: string): PaymentResult[]
+        +isPaymentMethodSupported(method: PaymentMethod): boolean
+    }
+    ' %% ============ RELATIONSHIPS ============
+
+    ' %% Inheritance
+    User <|-- Rider : extends
+    User <|-- Driver : extends
+
+    ' %% Interface Implementation
+    IDriverMatchingStrategy <|.. NearestDriverStrategy : implements
+    IDriverMatchingStrategy <|.. HighestRatedDriverStrategy : implements
+    
+    IPricingStrategy <|.. BasePricingStrategy : implements
+    IPricingStrategy <|.. SurgePricingDecorator : implements
+    IPricingStrategy <|.. DiscountPricingDecorator : implements
+    IPricingStrategy <|.. PromoCodePricingDecorator : implements
+    
+    INotificationService <|.. SMSNotificationService : implements
+    INotificationService <|.. EmailNotificationService : implements
+    INotificationService <|.. PushNotificationService : implements
+    
+    IPaymentProcessor <|.. CreditCardProcessor : implements
+    IPaymentProcessor <|.. DigitalWalletProcessor : implements
+    IPaymentProcessor <|.. CashProcessor : implements
+    
+    IRideObserver <|.. RiderNotificationObserver : implements
+    IRideObserver <|.. DriverNotificationObserver : implements
+    IRideObserver <|.. LoggingObserver : implements
+
+    ILocationService <|.. LocationService : implements
+
+    ' %% Composition (Strong ownership - filled diamond)
+    Driver *-- Vehicle : owns
+    Ride *-- RideRequest : contains
+    User *-- Location : currentLocation
+    Ride *-- RideStatusHistory : maintains
+    Vehicle *-- VehicleType : hasType
+    PaymentRequest *-- PaymentMethod : uses
+
+    ' %% Aggregation (Weak ownership - hollow diamond)
+    RideManager o-- IDriverMatchingStrategy : uses
+    RideManager o-- IPricingStrategy : uses
+    NotificationManager o-- INotificationService : manages
+    PaymentManager o-- IPaymentProcessor : manages
+    Ride o-- IRideObserver : notifies
+
+    ' %% Association (Simple lines)
+    RideManager --> DriverManager : queries
+    RideManager --> UserManager : accesses
+    RideManager --> NotificationManager : triggers
+    RideManager --> PaymentManager : processes
+    
+    Rider --> RideRequest : creates
+    Driver --> Ride : accepts/completes
+    
+    VehicleFactory --> Vehicle : creates
+    LocationService --> Location : processes
+    
+    ' %% Dependencies (Dashed arrows)
+    SurgePricingDecorator ..> IPricingStrategy : decorates
+    DiscountPricingDecorator ..> IPricingStrategy : decorates
+    PromoCodePricingDecorator ..> IPricingStrategy : decorates
+    
+    RiderNotificationObserver ..> INotificationService : uses
+    DriverNotificationObserver ..> INotificationService : uses
+    
+    NearestDriverStrategy ..> ILocationService : uses
+    
+    PaymentManager ..> PaymentResult : creates
+    PaymentManager ..> PaymentRequest : processes
+
+@enduml
