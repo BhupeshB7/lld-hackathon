@@ -5,7 +5,7 @@
   "main": "main.ts",
   "scripts": {
     "start": "ts-node src/index.ts",
-    "build": "tsc",
+    "test": "ts-node src/main.ts",
     "dev": "ts-node src/main.ts"
 },
   "keywords": [],

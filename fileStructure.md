@@ -29,4 +29,7 @@ src/
 │   └── VehicleFactory.ts
 ├── observers/
 │   └── RideObserver.ts
+|── index.ts
 └── main.ts
+
+
